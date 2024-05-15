@@ -8,6 +8,7 @@ import datetime
 import logging
 import os
 import threading
+import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, fields
 from itertools import compress
@@ -286,6 +287,23 @@ def download_all(
             config=config,
         )
 
+    def compress_video(input_path: str, output_path: str):
+        subprocess.run(['ffmpeg', '-i', input_path, '-vf', 'scale=288:-1', '-c:a', 'copy', output_path])
+
+    def split_video(input_path: str, output_folder: str):
+        subprocess.run(['ffmpeg', '-i', input_path, '-c', 'copy', '-map', '0', '-segment_time', '15', '-f', 'segment', f'{output_folder}/%03d.mp4'])
+
+    def rename_files(folder: str, subfolder: str):
+        files = os.listdir(os.path.join(folder, subfolder))
+
+        for file in files:
+            filename = os.path.basename(file)
+            filename_no_ext = os.path.splitext(filename)[0]
+            numeric_part = int(filename_no_ext)
+            new_timestamp = numeric_part * 15
+            new_filename = os.path.join(folder, subfolder, f"{new_timestamp}.mp4")
+            os.rename(os.path.join(folder, subfolder, filename), new_filename)
+
     def download_video(download: FileToDownload):
         nonlocal last_save
 
@@ -321,6 +339,24 @@ def download_all(
 
             download.file_path = file_path
             download.s3_content_size_bytes = obj.content_length
+            
+            # Compress the downloaded video to 288px resolution
+            compressed_path = str(file_path).replace('.mp4', '_compressed.mp4')
+            compress_video(str(file_path), compressed_path)
+
+            os.mkdir( os.path.join(download.download_folder, os.path.splitext(download.filename)[0]))
+
+            # Split the compressed video into chunks of 15 seconds
+            split_video(compressed_path, os.path.join(download.download_folder, os.path.splitext(download.filename)[0]))
+
+            # Rename the files in the subfolder
+            rename_files(download.download_folder, os.path.splitext(download.filename)[0])
+
+            # Delete the input file
+            file_path.unlink(missing_ok=True)
+
+            # Delete the resized whole video
+            os.unlink(compressed_path)
 
             with lock_update:
                 now = datetime.datetime.utcnow()

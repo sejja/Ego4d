@@ -74,6 +74,7 @@ class ValidatedConfig(NamedTuple):
     annotations: Union[bool, Set[str]]
     list_datasets: bool
     manifest_override_path: str
+    #slice_videos: bool
 
     @property
     def out_version_dir(self) -> str:
