@@ -52,6 +52,8 @@ class Config:
     released_video_path: Optional[str] = None
     input_university: Optional[str] = None
     output_dir: Optional[str] = None
+    split_videos: bool
+    video_resolution: int
 
 
 def validate_config(cfg: Config) -> ValidatedConfig:
